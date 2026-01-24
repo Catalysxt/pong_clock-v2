@@ -25,7 +25,7 @@ Adafruit_ILI9341 tft(
 void drawCentreLine() {
 	const uint16_t x = hw::display::kWidth / 2;
 	for (uint16_t y = 0; y < hw::display::kHeight; y+=10) {
-		tft.fillRect(x - 1, y, 2, 5, colors::kCentreLine);
+		tft.fillRect(x - 1, y, 2, 5, activeTheme->centreLine);
 	}
 }
 
@@ -38,7 +38,7 @@ void drawPaddle(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
 }
 
 void drawScore(int leftScore, int rightScore) {
-    tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
+    tft.setTextColor(activeTheme->score, activeTheme->background);
     tft.setTextSize(4);
     
     tft.setCursor(100, 10);
@@ -128,7 +128,7 @@ void checkGoal() {
 	{
 		RightScore++;
 		// Burst particles from left edge, moving right
-		goalParticles.burst(0, ballPos.y, 15, colors::kBall, true);
+		goalParticles.burst(0, ballPos.y, 15, activeTheme->accent, true);
 		// Start non-blocking celebration
 		isGoalCelebrating = true;
 		goalCelebrationEndTime = millis() + 1600;  // 1600ms celebration
@@ -145,7 +145,7 @@ void checkGoal() {
 	{
 		LeftScore++;
 		// Burst particles from right edge, moving left
-		goalParticles.burst(hw::display::kWidth, ballPos.y, 15, colors::kBall, false);
+		goalParticles.burst(hw::display::kWidth, ballPos.y, 15, activeTheme->accent, false);
 		// Start non-blocking celebration
 		isGoalCelebrating = true;
 		goalCelebrationEndTime = millis() + 1600;  // 1600ms celebration
@@ -170,7 +170,7 @@ void resetBall() {
 	int dirX = random(0, 2) == 0 ? 1 : -1;
 	ball.setvel(dirX, random(-2, 2));
 
-	ball.draw(tft, colors::kBall);
+	ball.draw(tft, activeTheme->ball);
 
 	// Brief pause after goal
 	delay(1000);
@@ -179,7 +179,7 @@ void resetBall() {
 
 void UpdateScoreDisplay() {
 
-	tft.fillScreen(colors::kBackground);
+	tft.fillScreen(activeTheme->background);
 	drawScore(LeftScore, RightScore);
 	drawCentreLine();
 }
@@ -202,10 +202,10 @@ void setup() {
     // Initialize display
     tft.begin();
     tft.setRotation(1);  // Landscape mode
-    tft.fillScreen(colors::kBackground);
+    tft.fillScreen(activeTheme->background);
 
     // Show "Connecting..." on display
-    tft.setTextColor(ILI9341_WHITE);
+    tft.setTextColor(activeTheme->score);
     tft.setTextSize(2);
     tft.setCursor(80, 110);
     tft.print("Connecting...");
@@ -218,14 +218,14 @@ void setup() {
     RightScore = TimeSync::getMinute();
 
     // Draw game
-    tft.fillScreen(colors::kBackground);
+    tft.fillScreen(activeTheme->background);
     drawCentreLine();
     drawScore(LeftScore, RightScore);
 
 	// Draw game objects
-	ball.draw(tft, colors::kBall);
-	LeftPaddle.draw(tft, colors::kPaddle);
-	RightPaddle.draw(tft, colors::kPaddle);
+	ball.draw(tft, activeTheme->ball);
+	LeftPaddle.draw(tft, activeTheme->paddle);
+	RightPaddle.draw(tft, activeTheme->paddle);
 
 	ball.setvel(4, 1); // Start moving diagonally 
 
@@ -251,7 +251,7 @@ void loop() {
     int targetMinute = TimeSync::getMinute();
 
 	// 1. Erase old positions (particles, trail, ball, paddles)
-	goalParticles.erase(tft, colors::kBackground);
+	goalParticles.erase(tft, activeTheme->background);
 	ball.eraseTrail(tft);
 	ball.erase(tft);
 	LeftPaddle.erase(tft);
@@ -275,11 +275,11 @@ void loop() {
 	}
 
 	// 3. Draw game objects (particles first, then trail, then ball on top)
-	goalParticles.draw(tft, colors::kBackground);
-	ball.drawTrail(tft, colors::kBall);
-    ball.draw(tft, colors::kBall);
-    LeftPaddle.draw(tft, LeftPaddle.getCurrentColor(colors::kPaddle));
-    RightPaddle.draw(tft, RightPaddle.getCurrentColor(colors::kPaddle));
+	goalParticles.draw(tft, activeTheme->background);
+	ball.drawTrail(tft, activeTheme->ball);
+    ball.draw(tft, activeTheme->ball);
+    LeftPaddle.draw(tft, LeftPaddle.getCurrentColor(activeTheme->paddle));
+    RightPaddle.draw(tft, RightPaddle.getCurrentColor(activeTheme->paddle));
     
     // 4. Small delay for ~60 FPS (16ms per frame)
     delay(16);

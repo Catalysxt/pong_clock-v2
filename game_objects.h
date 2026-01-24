@@ -122,7 +122,7 @@ class Ball {
 			t = easeOutQuad(t);
 			
 			// Interpolate color from ball color to background
-			uint16_t ghostColor = lerpColor(ballColor, colors::kBackground, t);
+			uint16_t ghostColor = lerpColor(ballColor, activeTheme->background, t);
 			
 			// Interpolate radius from full size to minimum
 			int16_t ghostRad = kTrailMinRadius + (int16_t)((rad_ - kTrailMinRadius) * (1.0f - t));
@@ -141,7 +141,7 @@ class Ball {
 		for (uint8_t i = 0; i < trailCount_; i++) {
 			uint8_t idx = (trailHead_ + kTrailLength - trailCount_ + i) % kTrailLength;
 			// Erase with slightly larger radius to ensure clean removal
-			display.fillCircle(trailHistory_[idx].x, trailHistory_[idx].y, rad_ + 1, colors::kBackground);
+			display.fillCircle(trailHistory_[idx].x, trailHistory_[idx].y, rad_ + 1, activeTheme->background);
 		}
 	}
 	
@@ -161,7 +161,7 @@ class Ball {
 	}
 	
 	void erase(Adafruit_ILI9341& display) {
-		draw(display, colors::kBackground);
+		draw(display, activeTheme->background);
 	}
 	
    // Accessors
@@ -346,7 +346,7 @@ class Paddle {
 	}
 	
 	void erase(Adafruit_ILI9341& display) {
-		draw(display, colors::kBackground);
+		draw(display, activeTheme->background);
 	}
 		
 	// Accessors
