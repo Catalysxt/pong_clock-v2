@@ -66,6 +66,13 @@ int LeftScore = 0;
 int RightScore = 0;
 bool gameRunning = true;
 
+// Particle system for goal celebrations
+ParticleSystem goalParticles;
+
+// Goal celebration state (non-blocking animation)
+unsigned long goalCelebrationEndTime = 0;  // millis() timestamp when celebration ends
+bool isGoalCelebrating = false;
+
 // Forward Declarations
 
 void resetBall();
@@ -110,6 +117,8 @@ void checkPaddleCollision() {
 }
 
 void checkGoal() {
+	// Don't check for goals during celebration
+	if (isGoalCelebrating) return;
 
 	Vec2 ballPos = ball.pos();
 	int16_t rad = ball.rad();
@@ -118,19 +127,35 @@ void checkGoal() {
 	if (ballPos.x - rad <= 0)
 	{
 		RightScore++;
-		resetBall();
-		UpdateScoreDisplay();
+		// Burst particles from left edge, moving right
+		goalParticles.burst(0, ballPos.y, 15, colors::kBall, true);
+		// Start non-blocking celebration
+		isGoalCelebrating = true;
+		goalCelebrationEndTime = millis() + 1600;  // 1600ms celebration
+		// Erase and reset ball immediately (no blocking delay)
+		ball.eraseTrail(tft);
+		ball.erase(tft);
+		ball = Ball(hw::display::kWidth / 2, hw::display::kHeight / 2, 3);
+		int dirX = random(0, 2) == 0 ? 1 : -1;
+		ball.setvel(dirX, random(-2, 2));
 	}
 
 	// Determine left player made a goal
 	if (ballPos.x + rad >= hw::display::kWidth)
 	{
 		LeftScore++;
-		resetBall();
-		UpdateScoreDisplay();
+		// Burst particles from right edge, moving left
+		goalParticles.burst(hw::display::kWidth, ballPos.y, 15, colors::kBall, false);
+		// Start non-blocking celebration
+		isGoalCelebrating = true;
+		goalCelebrationEndTime = millis() + 1600;  // 1600ms celebration
+		// Erase and reset ball immediately (no blocking delay)
+		ball.eraseTrail(tft);
+		ball.erase(tft);
+		ball = Ball(hw::display::kWidth / 2, hw::display::kHeight / 2, 3);
+		int dirX = random(0, 2) == 0 ? 1 : -1;
+		ball.setvel(dirX, random(-2, 2));
 	}
-
-
 }
 
 void resetBall() {
@@ -197,14 +222,14 @@ void setup() {
     drawCentreLine();
     drawScore(LeftScore, RightScore);
 
-		// Draw game objects
-		ball.draw(tft, colors::kBall);
-		LeftPaddle.draw(tft, colors::kPaddle);
-		RightPaddle.draw(tft, colors::kPaddle);
+	// Draw game objects
+	ball.draw(tft, colors::kBall);
+	LeftPaddle.draw(tft, colors::kPaddle);
+	RightPaddle.draw(tft, colors::kPaddle);
 
-		ball.setvel(2, 1); // Start moving diagonally 
+	ball.setvel(4, 1); // Start moving diagonally 
 
-		Serial.println("=== Pong Ready ===");
+	Serial.println("=== Pong Ready ===");
     Serial.println("=== May the Best Play Win! ===");
     Serial.printf("Target time: %02d:%02d\n", LeftScore, RightScore);
 }
@@ -225,20 +250,33 @@ void loop() {
     int targetHour = TimeSync::getHour();
     int targetMinute = TimeSync::getMinute();
 
-		// 1. Erase old positions (trail first, then ball)
-		ball.eraseTrail(tft);
-		ball.erase(tft);
-		LeftPaddle.erase(tft);
-		RightPaddle.erase(tft);
+	// 1. Erase old positions (particles, trail, ball, paddles)
+	goalParticles.erase(tft, colors::kBackground);
+	ball.eraseTrail(tft);
+	ball.erase(tft);
+	LeftPaddle.erase(tft);
+	RightPaddle.erase(tft);
 
-		// 2. Update position
+	// 2. Update positions
+	goalParticles.update();  // Always update particles
+	
+	// Check if celebration has ended
+	if (isGoalCelebrating && millis() >= goalCelebrationEndTime) {
+		isGoalCelebrating = false;
+		UpdateScoreDisplay();  // Refresh screen after particles fade
+	}
+	
+	// Only update game objects if not celebrating
+	if (!isGoalCelebrating) {
 		ball.getUpdate();
 		updatePaddleAI();
 		checkPaddleCollision();
 		checkGoal();
+	}
 
-		// 3. Draw game objects (trail first, then ball on top)
-		ball.drawTrail(tft, colors::kBall);
+	// 3. Draw game objects (particles first, then trail, then ball on top)
+	goalParticles.draw(tft, colors::kBackground);
+	ball.drawTrail(tft, colors::kBall);
     ball.draw(tft, colors::kBall);
     LeftPaddle.draw(tft, LeftPaddle.getCurrentColor(colors::kPaddle));
     RightPaddle.draw(tft, RightPaddle.getCurrentColor(colors::kPaddle));
