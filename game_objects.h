@@ -19,7 +19,28 @@ struct Vec2 {
 class Ball {
 
 	public:
-		// Trail configuration - static constexpr means compile-time constant
+		// ============================================
+		// BALL TRAIL CONFIGURATION GUIDE
+		// ============================================
+		// Adjust these values to tweak the comet trail effect:
+		//
+		// kTrailLength (default: 8)
+		//   - Number of ghost circles behind the ball
+		//   - Higher = longer trail, more memory usage
+		//   - Range: 4 (subtle) to 16 (dramatic comet)
+		//
+		// kTrailMinRadius (default: 2)
+		//   - Minimum radius of the oldest (farthest) ghost
+		//   - Set to 1 for sharper tail, increase for softer fade
+		//   - Should be less than ball radius (default ball rad: 3-5)
+		//
+		// Easing (in drawTrail): easeOutQuad
+		//   - Controls the fade curve. Options in effects.h:
+		//   - easeOutQuad: fast fade at start, slow at end (default)
+		//   - easeInQuad: slow fade at start, fast at end
+		//   - Linear: remove easing call for constant fade rate
+		// ============================================
+		
 		static constexpr uint8_t kTrailLength = 8;   // Number of ghost positions
 		static constexpr uint8_t kTrailMinRadius = 2; // Smallest trail dot radius
 		
@@ -165,94 +186,168 @@ class Ball {
 
 class Paddle {
 	public:
+		// ============================================
+		// PADDLE FLASH CONFIGURATION GUIDE
+		// ============================================
+		// Adjust these values to tweak the hit flash effect:
+		//
+		// kFlashDuration (default: 8)
+		//   - Number of frames the flash animation lasts
+		//   - Higher = slower fade back to normal
+		//   - Range: 4 (quick pop) to 16 (dramatic glow)
+		//
+		// kFlashColor (default: 0xFFFF = pure white)
+		//   - Initial flash color on impact
+		//   - Try 0x07FF (cyan) or 0xF81F (magenta) for theme variation
+		//
+		// Easing: Uses easeOutQuad for natural deceleration
+		//   - Change to linear by removing easeOutQuad() call in getCurrentColor()
+		// ============================================
+		
+		static constexpr uint8_t kFlashDuration = 8;  // Frames for flash animation
+		static constexpr uint16_t kFlashColor = 0xFFFF;  // Pure white flash
+		
 		// Constructor
 		Paddle(int16_t x, int16_t y, int16_t w, int16_t h) :
 		pos_{x, y}, width_(w), height_(h), speed_(3),
-    reactionDelay_(0), targetY_(y), lastUpdate_(0) {}
+		reactionDelay_(0), targetY_(y), lastUpdate_(0),
+		isFlashing_(false), flashFramesRemaining_(0) {}  // Initialize flash state
 
-	void updateAI(int16_t ballY, int16_t ballX, bool isLeftPaddle) {
-    unsigned long now = millis();
-    
-    // Only update target occasionally (reaction time)
-    if (now - lastUpdate_ > reactionDelay_) {
-        lastUpdate_ = now;
-        
-        // Set new reaction delay (50-150ms, like human reflexes)
-        reactionDelay_ = random(50, 150);
-        
-        // Predict where to go, but with some error
-        int16_t error = random(-15, 16);
-        targetY_ = ballY + error;
-        
-        // Occasionally "lose focus" and drift toward center
-        if (random(0, 10) == 0) {
-            targetY_ = hw::display::kHeight / 2;
-        }
-    }
-    
-    // Move toward target (not instant, gradual)
-    int16_t centerY = pos_.y + height_ / 2;
-    int16_t diff = targetY_ - centerY;
-    
-    // Add "laziness" - don't move for tiny adjustments
-    if (abs(diff) > 5) {
-        // Clamp movement to speed limit (avoid overshoot)
-        int16_t movement = diff;
-        if (movement > static_cast<int16_t>(speed_)) {
-            movement = static_cast<int16_t>(speed_);
-        } else if (movement < -static_cast<int16_t>(speed_)) {
-            movement = -static_cast<int16_t>(speed_);
-        }
-        pos_.y += movement;
-    } else {
-        // Small random fidgeting when "waiting"
-        if (random(0, 5) == 0) {
-            pos_.y += random(-2, 3);
-        }
-    }
-    // Clamp to play area
-    if (pos_.y < hw::layout::kPlayAreaTop) {
-        pos_.y = hw::layout::kPlayAreaTop;
-    }
-    if (pos_.y > hw::display::kHeight - height_) {
-        pos_.y = hw::display::kHeight - height_;
-    }
-}
+	/**
+	 * Trigger the flash animation.
+	 * Called when ball collides with this paddle.
+	 * 
+	 * C++ Concept: State Machine
+	 * - isFlashing_ is the state flag
+	 * - flashFramesRemaining_ is the countdown timer
+	 * - getCurrentColor() reads and advances the state each frame
+	 */
+	void triggerFlash() {
+		isFlashing_ = true;
+		flashFramesRemaining_ = kFlashDuration;
+	}
 	
-	
-		void moveToward(int16_t targetY) {
-			int16_t centerY = pos_.y + height_ / 2;
-
-			if (centerY < targetY - 2) {
-					pos_.y += speed_;
-			} else if (centerY > targetY + 2) {
-					pos_.y -= speed_;
-			}
-			
-			// Clamp to play area (below score)
-			if (pos_.y < hw::layout::kPlayAreaTop) {
-					pos_.y = hw::layout::kPlayAreaTop;
-			}
-			if (pos_.y > hw::display::kHeight - height_) {
-					pos_.y = hw::display::kHeight - height_;
-			}
-}
-		
-		// Collision detection. Has the ball made contact with the paddle?
-		bool contain(uint16_t x, uint16_t y) const {
-		// Take into account the thickness of the paddle for collison detection
-			return x >= pos_.x && x <= pos_.x + width_ &&
-						 y >= pos_.y && y <= pos_.x + height_;
+	/**
+	 * Get the current paddle color based on flash state.
+	 * If flashing, interpolates from flash color back to base color.
+	 * 
+	 * @param baseColor The normal paddle color (from theme)
+	 * @return Current color to draw the paddle
+	 * 
+	 * C++ Concept: Linear Interpolation (Lerp)
+	 * - t represents progress through animation (0.0 = start, 1.0 = end)
+	 * - We lerp from flash color to base color as t increases
+	 */
+	uint16_t getCurrentColor(uint16_t baseColor) {
+		if (!isFlashing_) {
+			return baseColor;
 		}
 		
-    // The paddle is drawn using the arguments via pass by value
-		void draw(Adafruit_ILI9341& display, uint16_t color) {
-	    display.fillRect(pos_.x, pos_.y, width_, height_, color);
-    }
-    
-    void erase(Adafruit_ILI9341& display) {
-        draw(display, colors::kBackground);
-    }
+		// Calculate animation progress: 0.0 at start, 1.0 at end
+		float t = 1.0f - ((float)flashFramesRemaining_ / (float)kFlashDuration);
+		
+		// Apply ease-out for snappy flash, gradual fade
+		t = easeOutQuad(t);
+		
+		// Decrement frame counter
+		flashFramesRemaining_--;
+		if (flashFramesRemaining_ == 0) {
+			isFlashing_ = false;
+		}
+		
+		// Interpolate from flash color to base color
+		return lerpColor(kFlashColor, baseColor, t);
+	}
+	
+	/**
+	 * Check if paddle is currently in flash animation.
+	 * Useful for external logic if needed.
+	 */
+	bool isFlashing() const { return isFlashing_; }
+
+	void updateAI(int16_t ballY, int16_t ballX, bool isLeftPaddle) {
+		unsigned long now = millis();
+		
+		// Only update target occasionally (reaction time)
+		if (now - lastUpdate_ > reactionDelay_) {
+			lastUpdate_ = now;
+			
+			// Set new reaction delay (50-150ms, like human reflexes)
+			reactionDelay_ = random(50, 150);
+			
+			// Predict where to go, but with some error
+			int16_t error = random(-15, 16);
+			targetY_ = ballY + error;
+			
+			// Occasionally "lose focus" and drift toward center
+			if (random(0, 10) == 0) {
+				targetY_ = hw::display::kHeight / 2;
+			}
+		}
+		
+		// Move toward target (not instant, gradual)
+		int16_t centerY = pos_.y + height_ / 2;
+		int16_t diff = targetY_ - centerY;
+		
+		// Add "laziness" - don't move for tiny adjustments
+		if (abs(diff) > 5) {
+			// Clamp movement to speed limit (avoid overshoot)
+			int16_t movement = diff;
+			if (movement > static_cast<int16_t>(speed_)) {
+				movement = static_cast<int16_t>(speed_);
+			} else if (movement < -static_cast<int16_t>(speed_)) {
+				movement = -static_cast<int16_t>(speed_);
+			}
+			pos_.y += movement;
+		} else {
+			// Small random fidgeting when "waiting"
+			if (random(0, 5) == 0) {
+				pos_.y += random(-2, 3);
+			}
+		}
+		// Clamp to play area
+		if (pos_.y < hw::layout::kPlayAreaTop) {
+			pos_.y = hw::layout::kPlayAreaTop;
+		}
+		if (pos_.y > hw::display::kHeight - height_) {
+			pos_.y = hw::display::kHeight - height_;
+		}
+	}
+	
+	
+	void moveToward(int16_t targetY) {
+		int16_t centerY = pos_.y + height_ / 2;
+
+		if (centerY < targetY - 2) {
+				pos_.y += speed_;
+		} else if (centerY > targetY + 2) {
+				pos_.y -= speed_;
+		}
+		
+		// Clamp to play area (below score)
+		if (pos_.y < hw::layout::kPlayAreaTop) {
+				pos_.y = hw::layout::kPlayAreaTop;
+		}
+		if (pos_.y > hw::display::kHeight - height_) {
+				pos_.y = hw::display::kHeight - height_;
+		}
+	}
+		
+	// Collision detection. Has the ball made contact with the paddle?
+	bool contain(uint16_t x, uint16_t y) const {
+		// Take into account the thickness of the paddle for collison detection
+		return x >= pos_.x && x <= pos_.x + width_ &&
+					 y >= pos_.y && y <= pos_.x + height_;
+	}
+		
+	// The paddle is drawn using the arguments via pass by value
+	void draw(Adafruit_ILI9341& display, uint16_t color) {
+		display.fillRect(pos_.x, pos_.y, width_, height_, color);
+	}
+	
+	void erase(Adafruit_ILI9341& display) {
+		draw(display, colors::kBackground);
+	}
 		
 	// Accessors
 	Vec2 pos() const { return pos_; }
@@ -267,9 +362,13 @@ class Paddle {
 	int16_t speed_;
 
 	// AI state
-  unsigned long reactionDelay_;
-  int16_t targetY_;
-  unsigned long lastUpdate_;
+	unsigned long reactionDelay_;
+	int16_t targetY_;
+	unsigned long lastUpdate_;
+	
+	// Flash animation state
+	bool isFlashing_;              // Whether flash is active
+	uint8_t flashFramesRemaining_; // Countdown timer
 
 };
 

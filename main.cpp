@@ -88,6 +88,9 @@ void checkPaddleCollision() {
 	// Reverse x direction and introduce randomness 
 	Vec2 currentVel = ball.vel();
 	ball.setvel(abs(currentVel.x) + random(1, 1), currentVel.y + random(-2, 2));
+	
+	// Trigger paddle flash on impact
+	LeftPaddle.triggerFlash();
 
 	}	
 
@@ -100,6 +103,9 @@ void checkPaddleCollision() {
         // Reverse X direction and add slight randomness
         Vec2 currentVel = ball.vel();
         ball.setvel(-abs(currentVel.x) + random(-1, 1), currentVel.y + random(-2, 2));
+        
+        // Trigger paddle flash on impact
+        RightPaddle.triggerFlash();
     }
 }
 
@@ -234,8 +240,8 @@ void loop() {
 		// 3. Draw game objects (trail first, then ball on top)
 		ball.drawTrail(tft, colors::kBall);
     ball.draw(tft, colors::kBall);
-    LeftPaddle.draw(tft, colors::kPaddle);
-    RightPaddle.draw(tft, colors::kPaddle);
+    LeftPaddle.draw(tft, LeftPaddle.getCurrentColor(colors::kPaddle));
+    RightPaddle.draw(tft, RightPaddle.getCurrentColor(colors::kPaddle));
     
     // 4. Small delay for ~60 FPS (16ms per frame)
     delay(16);
