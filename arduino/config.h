@@ -1,5 +1,8 @@
 #pragma once
 #include <Arduino.h>
+#include <Adafruit_ST7789.h> // Hardware-specific library for ST7789
+#include <SPI.h>
+
 
 // ============================================
 // HARDWARE CONFIGURATION
@@ -78,10 +81,10 @@ constexpr Theme kGlacier = {
 };
 
 constexpr Theme kMonochrome = {
-  0x0000,
-  0xFFFF,
-  0xFFFF,
-  0xFFFF,
+  ST77XX_BLUE,
+  ST77XX_RED,
+  ST77XX_MAGENTA,
+  ST77XX_GREEN,
   0x4208,
   0xFFFF
 };
